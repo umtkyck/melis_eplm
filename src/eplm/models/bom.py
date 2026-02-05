@@ -1,4 +1,11 @@
-"""Bill of Materials models for electronics product management."""
+"""Bill of Materials models for electronics product management.
+
+Enhanced with:
+- Multi-level/hierarchical BOM (sub-assemblies) — addresses IFS flat-BOM limitation
+- BOM type (engineering vs manufacturing) — addresses eBOM/mBOM friction
+"""
+
+import enum
 
 from sqlalchemy import Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -7,25 +14,46 @@ from eplm.models.base import Base
 from eplm.models.lifecycle import LifecyclePhase
 
 
+class BomType(str, enum.Enum):
+    ENGINEERING = "engineering"  # eBOM — as designed
+    MANUFACTURING = "manufacturing"  # mBOM — as built (with kits, phantoms, routings)
+    SERVICE = "service"  # sBOM — for field service / spare parts
+    PROTOTYPE = "prototype"  # for early prototyping runs
+
+
 class BillOfMaterials(Base):
     """A versioned bill of materials tied to a product.
 
-    Each product can have multiple BOM versions (e.g. for different revisions
-    or manufacturing variants).
+    Supports multi-level hierarchy: a BOM can reference sub-assembly BOMs via
+    parent_bom_id, enabling hierarchical structures common in electronics
+    (e.g. main board → power module sub-assembly → individual components).
+
+    Supports eBOM/mBOM distinction to address the engineering-to-manufacturing
+    handoff that IFS users consistently complain about.
     """
 
     __tablename__ = "boms"
 
     product_id: Mapped[str] = mapped_column(ForeignKey("products.id"), index=True)
+    parent_bom_id: Mapped[str | None] = mapped_column(
+        ForeignKey("boms.id"), nullable=True, index=True
+    )
     revision: Mapped[str] = mapped_column(String(10), default="1")
     name: Mapped[str] = mapped_column(String(200), default="")
     description: Mapped[str] = mapped_column(Text, default="")
+    bom_type: Mapped[BomType] = mapped_column(
+        Enum(BomType), default=BomType.ENGINEERING
+    )
     phase: Mapped[LifecyclePhase] = mapped_column(
         Enum(LifecyclePhase), default=LifecyclePhase.DESIGN
     )
     is_active: Mapped[bool] = mapped_column(default=True)
+    level: Mapped[int] = mapped_column(Integer, default=0)  # 0 = top-level
 
     product: Mapped["Product"] = relationship(back_populates="boms")  # noqa: F821
+    parent_bom: Mapped["BillOfMaterials | None"] = relationship(
+        remote_side="BillOfMaterials.id", foreign_keys=[parent_bom_id]
+    )
     line_items: Mapped[list["BomLineItem"]] = relationship(
         back_populates="bom", cascade="all, delete-orphan", order_by="BomLineItem.reference"
     )

@@ -21,11 +21,13 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
-        version="0.1.0",
+        version="0.2.0",
         description=(
             "Product Lifecycle Management API for electronics product development. "
             "Manages products, components, BOMs, engineering changes, documents, "
-            "and regulatory compliance throughout the product lifecycle."
+            "regulatory compliance, approval workflows, supply chain (alternates/AVL), "
+            "manufacturer part tracking, and provides analytics dashboards. "
+            "Designed to address common PLM pain points reported by IFS users."
         ),
         lifespan=lifespan,
     )
@@ -33,12 +35,21 @@ def create_app() -> FastAPI:
     # Import models so they are registered with Base.metadata
     import eplm.models  # noqa: F401
 
+    # Core modules
     from eplm.api.boms import router as boms_router
     from eplm.api.changes import router as changes_router
     from eplm.api.compliance import router as compliance_router
     from eplm.api.components import router as components_router
     from eplm.api.documents import router as documents_router
     from eplm.api.products import router as products_router
+
+    # New modules — addressing IFS pain points
+    from eplm.api.alternates import router as alternates_router
+    from eplm.api.analysis import router as analysis_router
+    from eplm.api.approvals import router as approvals_router
+    from eplm.api.audit import router as audit_router
+    from eplm.api.mpn import router as mpn_router
+    from eplm.api.webhooks import router as webhooks_router
 
     prefix = settings.api_prefix
     app.include_router(products_router, prefix=prefix)
@@ -47,10 +58,16 @@ def create_app() -> FastAPI:
     app.include_router(changes_router, prefix=prefix)
     app.include_router(documents_router, prefix=prefix)
     app.include_router(compliance_router, prefix=prefix)
+    app.include_router(approvals_router, prefix=prefix)
+    app.include_router(alternates_router, prefix=prefix)
+    app.include_router(mpn_router, prefix=prefix)
+    app.include_router(analysis_router, prefix=prefix)
+    app.include_router(audit_router, prefix=prefix)
+    app.include_router(webhooks_router, prefix=prefix)
 
     @app.get("/health")
     async def health():
-        return {"status": "ok", "service": settings.app_name}
+        return {"status": "ok", "service": settings.app_name, "version": "0.2.0"}
 
     return app
 

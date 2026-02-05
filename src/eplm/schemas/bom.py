@@ -1,27 +1,37 @@
-"""Pydantic schemas for BOM management."""
+"""Pydantic schemas for BOM management.
+
+Enhanced with multi-level BOM and eBOM/mBOM type support.
+"""
 
 from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from eplm.models.bom import BomType
 from eplm.models.lifecycle import LifecyclePhase
 
 
 class BomCreate(BaseModel):
     product_id: str
+    parent_bom_id: str | None = None
     revision: str = "1"
     name: str = ""
     description: str = ""
+    bom_type: BomType = BomType.ENGINEERING
+    level: int = Field(default=0, ge=0)
 
 
 class BomResponse(BaseModel):
     id: str
     product_id: str
+    parent_bom_id: str | None
     revision: str
     name: str
     description: str
+    bom_type: BomType
     phase: LifecyclePhase
     is_active: bool
+    level: int
     total_cost: float
     component_count: int
     created_at: datetime
